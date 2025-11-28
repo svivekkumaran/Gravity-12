@@ -733,15 +733,22 @@ function openAddFamilyMemberModal() {
 function addFamilyMember(event) {
     event.preventDefault();
 
-    const username = document.getElementById('new-member-username').value.toLowerCase();
     const name = document.getElementById('new-member-name').value;
-    const password = document.getElementById('new-member-password').value;
     const avatar = document.getElementById('new-member-avatar').value;
 
-    // Check if username already exists
+    // Auto-generate username from name (lowercase, no spaces, random suffix)
+    const baseUsername = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const randomSuffix = Math.floor(Math.random() * 1000);
+    const username = `${baseUsername}${randomSuffix}`;
+
+    // Auto-generate random password (since login is not intended for these members)
+    const password = Math.random().toString(36).slice(-8);
+
+    // Check if username already exists (unlikely with random suffix but good practice)
     const users = getUsers();
     if (users.find(u => u.username === username)) {
-        alert('Username already exists! Please choose a different username.');
+        // Retry with new random suffix
+        addFamilyMember(event);
         return;
     }
 
@@ -770,7 +777,8 @@ function addFamilyMember(event) {
     renderFamilyMembers();
     renderDashboard();
 
-    alert(`Family member "${name}" added successfully! They can now login with username: ${username}`);
+    // Show simple success message
+    alert(`Family member "${name}" added successfully!`);
 }
 
 // ===================================
