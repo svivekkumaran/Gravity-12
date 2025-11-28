@@ -23,9 +23,7 @@ const INVESTMENT_CATEGORIES = [
 
 const FAMILY_MEMBERS = [
     { id: 'self', name: 'Self', username: 'self', avatar: '👤' },
-    { id: 'spouse', name: 'Spouse', username: 'spouse', avatar: '💑' },
-    { id: 'daughter1', name: 'Daughter 1', username: 'daughter1', avatar: '👧' },
-    { id: 'daughter2', name: 'Daughter 2', username: 'daughter2', avatar: '👧' }
+    { id: 'spouse', name: 'Spouse', username: 'spouse', avatar: '💑' }
 ];
 
 // ===================================
@@ -85,15 +83,34 @@ function generateId() {
 // ===================================
 
 function initializeStorage() {
-    if (!localStorage.getItem('investmentTrackerUsers')) {
-        const defaultUsers = FAMILY_MEMBERS.map(member => ({
+    // Initialize or Update Users
+    let users = JSON.parse(localStorage.getItem('investmentTrackerUsers') || 'null');
+
+    if (!users) {
+        // First time initialization
+        users = FAMILY_MEMBERS.map(member => ({
             id: member.id,
             username: member.username,
             password: hashPassword('password123'), // Default password
             name: member.name,
             avatar: member.avatar
         }));
-        localStorage.setItem('investmentTrackerUsers', JSON.stringify(defaultUsers));
+        localStorage.setItem('investmentTrackerUsers', JSON.stringify(users));
+    } else {
+        // Remove default users that are no longer in FAMILY_MEMBERS (e.g. daughters)
+        // But keep custom added users (who won't be in FAMILY_MEMBERS anyway)
+        // And keep Self/Spouse updates
+
+        // List of default IDs that should exist
+        const defaultIds = FAMILY_MEMBERS.map(m => m.id);
+
+        // List of default IDs that were removed (hardcoded for this migration)
+        const removedIds = ['daughter1', 'daughter2'];
+
+        // Filter out the removed default users
+        users = users.filter(user => !removedIds.includes(user.id));
+
+        localStorage.setItem('investmentTrackerUsers', JSON.stringify(users));
     }
 
     if (!localStorage.getItem('investmentTrackerData')) {
