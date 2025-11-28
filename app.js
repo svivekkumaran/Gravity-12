@@ -320,6 +320,96 @@ function viewMemberDetails(memberId) {
 
     showPage('member-details');
     renderMemberDetails();
+    // Render Chart
+    setTimeout(() => renderMemberChart(memberId), 100);
+}
+
+function renderMemberChart(memberId) {
+    const canvas = document.getElementById('member-chart');
+    if (!canvas) return;
+
+    // Destroy existing chart if any
+    if (window.memberChartInstance) {
+        window.memberChartInstance.destroy();
+    }
+
+    const investments = getInvestments(memberId);
+    if (investments.length === 0) return;
+
+    // Sort investments by date
+    const sortedInvestments = [...investments].sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
+
+    // Prepare data points
+    // We want to show cumulative investment over time
+    const dataPoints = [];
+    let cumulativeTotal = 0;
+
+    sortedInvestments.forEach(inv => {
+        cumulativeTotal += parseFloat(inv.investedAmount);
+        dataPoints.push({
+            x: new Date(inv.purchaseDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+            y: cumulativeTotal,
+            detail: inv // Store detail for tooltip if needed
+        });
+    });
+
+    const ctx = canvas.getContext('2d');
+
+    window.memberChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dataPoints.map(d => d.x),
+            datasets: [{
+                label: 'Total Invested Amount',
+                data: dataPoints.map(d => d.y),
+                borderColor: '#4ade80', // Primary Green
+                backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+                pointBackgroundColor: '#4ade80',
+                pointRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            return 'Invested: ' + formatCurrency(context.raw);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        callback: function (value) {
+                            return '₹' + (value / 1000) + 'k';
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)'
+                    }
+                }
+            }
+        }
+    });
 }
 
 function renderMemberDetails() {
@@ -370,7 +460,10 @@ function renderMemberDetails() {
             const row = document.createElement('tr');
             row.innerHTML = `
         <td>${inv.name}</td>
-        <td><span class="badge" style="background: rgba(147, 51, 234, 0.2); color: var(--primary-light);">${inv.category}</span></td>
+        <td>
+            <span class="badge" style="background: rgba(147, 51, 234, 0.2); color: var(--primary-light);">${inv.category}</span>
+            ${inv.interestRate ? `<div style="font-size: 0.75rem; margin-top: 4px; color: var(--text-secondary);">${inv.interestRate}% for ${inv.tenureYears} yrs</div>` : ''}
+        </td>
         <td>${formatCurrency(invested)}</td>
         <td>${formatCurrency(current)}</td>
         <td class="${gain >= 0 ? 'text-success' : 'text-danger'}">
@@ -419,8 +512,10 @@ function saveInvestmentForm(event) {
     const investmentData = {
         name: document.getElementById('investment-name').value,
         category: document.getElementById('investment-category').value,
-        investedAmount: parseFloat(document.getElementById('investment-amount').value),
-        currentValue: parseFloat(document.getElementById('investment-current').value),
+        investedAmount: parseFloat(document.getElementById('inv-invested').value),
+        currentValue: parseFloat(document.getElementById('inv-current').value),
+        interestRate: parseFloat(document.getElementById('inv-interest').value || 0),
+        tenureYears: parseFloat(document.getElementById('inv-years').value || 0),
         purchaseDate: document.getElementById('investment-date').value,
         notes: document.getElementById('investment-notes').value
     };
@@ -435,19 +530,24 @@ function saveInvestmentForm(event) {
     renderMemberDetails();
 }
 
-function editInvestment(investmentId) {
+function openEditInvestmentModal(investmentId) {
     const investments = getInvestments(selectedMember.id);
-    const investment = investments.find(inv => inv.id === investmentId);
-
+    const investment = investments.find(i => i.id === investmentId);
     if (!investment) return;
 
     document.getElementById('investment-id').value = investment.id;
     document.getElementById('investment-name').value = investment.name;
     document.getElementById('investment-category').value = investment.category;
-    document.getElementById('investment-amount').value = investment.investedAmount;
-    document.getElementById('investment-current').value = investment.currentValue;
+    document.getElementById('inv-invested').value = investment.investedAmount;
+    document.getElementById('inv-current').value = investment.currentValue;
+    document.getElementById('inv-interest').value = investment.interestRate || '';
+    document.getElementById('inv-years').value = investment.tenureYears || '';
     document.getElementById('investment-date').value = investment.purchaseDate;
     document.getElementById('investment-notes').value = investment.notes || '';
+
+    // Trigger category change to show/hide interest fields
+    const event = new Event('change');
+    document.getElementById('investment-category').dispatchEvent(event);
 
     document.getElementById('investment-modal-title').textContent = 'Edit Investment';
     populateCategorySelect();
@@ -779,6 +879,124 @@ function addFamilyMember(event) {
 
     // Show simple success message
     alert(`Family member "${name}" added successfully!`);
+}
+
+// ===================================
+// Investment Calculator Functions
+// ===================================
+
+let currentCalcType = 'sip';
+
+function openCalculator() {
+    showModal('calculator-modal');
+    calculateReturns();
+}
+
+function switchCalcTab(type) {
+    currentCalcType = type;
+
+    // Update tabs UI
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(`tab-${type}`).classList.add('active');
+
+    // Update labels
+    const amountLabel = document.getElementById('calc-amount-label');
+    if (type === 'sip') {
+        amountLabel.textContent = 'Monthly Investment (₹)';
+    } else {
+        amountLabel.textContent = 'Total Investment (₹)';
+    }
+
+    calculateReturns();
+}
+
+function calculateReturns() {
+    const amount = parseFloat(document.getElementById('calc-amount').value) || 0;
+    const rate = parseFloat(document.getElementById('calc-rate').value) || 0;
+    const years = parseFloat(document.getElementById('calc-years').value) || 0;
+
+    let invested = 0;
+    let total = 0;
+
+    if (currentCalcType === 'sip') {
+        const months = years * 12;
+        const monthlyRate = rate / 12 / 100;
+
+        invested = amount * months;
+
+        // SIP Formula: P × ({[1 + i]^n - 1} / i) × (1 + i)
+        if (rate > 0) {
+            total = amount * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate);
+        } else {
+            total = invested;
+        }
+    } else {
+        // Lumpsum Formula: P(1 + r/100)^n
+        invested = amount;
+        total = amount * Math.pow(1 + rate / 100, years);
+    }
+
+    const returns = total - invested;
+
+    document.getElementById('calc-invested').textContent = formatCurrency(invested);
+    document.getElementById('calc-returns').textContent = formatCurrency(returns);
+    document.getElementById('calc-total').textContent = formatCurrency(total);
+}
+
+// ===================================
+// Auto-Calculation for Add Investment
+// ===================================
+
+function setupInvestmentListeners() {
+    const categorySelect = document.getElementById('investment-category');
+    const interestFields = document.getElementById('interest-fields');
+
+    if (!categorySelect || !interestFields) return;
+
+    // Toggle fields based on category
+    categorySelect.addEventListener('change', () => {
+        const category = categorySelect.value;
+        const showInterest = ['Fixed Deposits', 'RD (Recurring Deposit)', 'Bonds', 'PPF/NPS'].includes(category);
+        interestFields.style.display = showInterest ? 'block' : 'none';
+
+        // Clear fields if hidden
+        if (!showInterest) {
+            document.getElementById('inv-interest').value = '';
+            document.getElementById('inv-years').value = '';
+        }
+    });
+
+    // Auto-calculate current value
+    const inputs = ['inv-invested', 'inv-interest', 'inv-years', 'investment-category'];
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', calculateMaturity);
+    });
+}
+
+function calculateMaturity() {
+    const category = document.getElementById('investment-category').value;
+    const principal = parseFloat(document.getElementById('inv-invested').value) || 0;
+    const rate = parseFloat(document.getElementById('inv-interest').value) || 0;
+    const years = parseFloat(document.getElementById('inv-years').value) || 0;
+
+    if (principal > 0 && rate > 0 && years > 0) {
+        let maturity = 0;
+
+        if (category === 'RD (Recurring Deposit)') {
+            // RD Maturity Formula
+            const months = years * 12;
+            // Simple interest on monthly deposits
+            // M = P * n + P * (n*(n+1)/2) * (r/12/100)
+            const interest = principal * (months * (months + 1) / 2) * (rate / 12 / 100);
+            maturity = (principal * months) + interest;
+        } else {
+            // Compound Interest for FD/Bonds/PPF: A = P(1 + r/100)^t
+            maturity = principal * Math.pow(1 + rate / 100, years);
+        }
+
+        document.getElementById('inv-current').value = maturity.toFixed(2);
+    }
 }
 
 // ===================================

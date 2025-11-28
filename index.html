@@ -6,7 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Family Investment Tracker - Track and manage investments for your entire family">
   <title>Family Investment Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -22,6 +24,7 @@
           onclick="showPage('dashboard'); renderDashboard(); return false;">Dashboard</a>
         <a href="#" class="nav-link" data-page="profile"
           onclick="showPage('profile'); renderProfile(); return false;">Profile</a>
+        <a href="#" class="nav-link" onclick="openCalculator()">Calculator</a>
         <a href="#" class="nav-link" onclick="exportData(); return false;">Export Data</a>
         <a href="#" class="nav-link" onclick="importData(); return false;">Import Data</a>
         <span class="nav-link" style="color: var(--primary);">👤 <span id="user-name"></span></span>
@@ -176,6 +179,14 @@
         <div class="glass-card">
           <div class="stat-label" style="color: var(--text-secondary);">Return %</div>
           <div class="stat-value" id="member-gain-percent" style="font-size: 2rem;">+0.00%</div>
+        </div>
+      </div>
+
+      <!-- Investment Growth Chart -->
+      <div class="glass-card" style="margin-bottom: var(--spacing-xl); height: 300px; padding: var(--spacing-lg);">
+        <h2 style="margin-top: 0; margin-bottom: var(--spacing-md);">Investment Growth</h2>
+        <div style="height: 220px; width: 100%;">
+          <canvas id="member-chart"></canvas>
         </div>
       </div>
 
@@ -343,18 +354,31 @@
           </select>
         </div>
 
-        <div class="grid grid-2">
-          <div class="form-group">
-            <label class="form-label" for="investment-amount">Invested Amount (₹)</label>
-            <input type="number" id="investment-amount" class="form-input" placeholder="100000" step="0.01" min="0"
-              required>
-          </div>
+        <div class="form-group">
+          <label class="form-label" for="inv-invested">Invested Amount (₹)</label>
+          <input type="number" id="inv-invested" class="form-input" placeholder="0.00" required step="0.01">
+        </div>
 
-          <div class="form-group">
-            <label class="form-label" for="investment-current">Current Value (₹)</label>
-            <input type="number" id="investment-current" class="form-input" placeholder="120000" step="0.01" min="0"
-              required>
+        <!-- Dynamic Fields for FD/RD/Bonds -->
+        <div id="interest-fields" style="display: none;">
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label" for="inv-interest">Interest Rate (%)</label>
+              <input type="number" id="inv-interest" class="form-input" placeholder="e.g. 7.5" step="0.01">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="inv-years">Tenure (Years)</label>
+              <input type="number" id="inv-years" class="form-input" placeholder="e.g. 5" step="0.1">
+            </div>
           </div>
+          <small class="text-secondary" style="display: block; margin-bottom: var(--spacing-md);">
+            Current Value will be auto-calculated based on these values.
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="inv-current">Current Value (₹)</label>
+          <input type="number" id="inv-current" class="form-input" placeholder="0.00" required step="0.01">
         </div>
 
         <div class="form-group">
@@ -422,6 +446,56 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ===================================
+       Investment Calculator Modal
+       =================================== -->
+  <div id="calculator-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Investment Calculator</h2>
+        <button class="modal-close" onclick="hideModal('calculator-modal')">&times;</button>
+      </div>
+
+      <div class="tabs" style="margin-bottom: var(--spacing-lg);">
+        <div class="tab active" onclick="switchCalcTab('sip')" id="tab-sip">SIP</div>
+        <div class="tab" onclick="switchCalcTab('lumpsum')" id="tab-lumpsum">Lumpsum</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" id="calc-amount-label">Monthly Investment (₹)</label>
+        <input type="number" id="calc-amount" class="form-input" value="5000" oninput="calculateReturns()">
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Expected Return (%)</label>
+          <input type="number" id="calc-rate" class="form-input" value="12" oninput="calculateReturns()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Time Period (Years)</label>
+          <input type="number" id="calc-years" class="form-input" value="10" oninput="calculateReturns()">
+        </div>
+      </div>
+
+      <div class="glass-card"
+        style="margin-top: var(--spacing-lg); padding: var(--spacing-md); background: rgba(255, 255, 255, 0.05);">
+        <div class="flex-between" style="margin-bottom: var(--spacing-sm);">
+          <span class="text-secondary">Invested Amount</span>
+          <span style="font-weight: 600;" id="calc-invested">₹0</span>
+        </div>
+        <div class="flex-between" style="margin-bottom: var(--spacing-sm);">
+          <span class="text-secondary">Est. Returns</span>
+          <span style="font-weight: 600; color: var(--success);" id="calc-returns">₹0</span>
+        </div>
+        <div class="flex-between"
+          style="font-size: 1.25rem; font-weight: 700; border-top: 1px solid var(--glass-border); padding-top: var(--spacing-sm); margin-top: var(--spacing-sm);">
+          <span>Total Value</span>
+          <span style="color: var(--primary);" id="calc-total">₹0</span>
+        </div>
+      </div>
     </div>
   </div>
 
