@@ -7,7 +7,6 @@
 // ===================================
 
 const INVESTMENT_CATEGORIES = [
-    'Equity',
     'Stocks',
     'US Stock',
     'Mutual Funds',
@@ -158,6 +157,122 @@ function deleteInvestment(userId, investmentId) {
     const investments = getInvestments(userId);
     const filtered = investments.filter(inv => inv.id !== investmentId);
     saveInvestments(userId, filtered);
+}
+
+// ===================================
+// Transaction-Based Data Model
+// ===================================
+
+function migrateInvestmentData() {
+    const allData = getInvestments();
+    let migrated = false;
+
+    Object.keys(allData).forEach(userId => {
+        const investments = allData[userId];
+        investments.forEach(inv => {
+            // Check if this is old format (has investedAmount but no transactions)
+            if (inv.investedAmount !== undefined && !inv.transactions) {
+                migrated = true;
+                const invested = parseFloat(inv.investedAmount) || 0;
+                const current = parseFloat(inv.currentValue) || invested;
+
+                // Assume 100 units at ₹100 each for migration
+                const assumedPrice = 100;
+                const units = invested / assumedPrice;
+                const currentPrice = units > 0 ? current / units : assumedPrice;
+
+                inv.transactions = [{
+                    id: generateId(),
+                    type: 'buy',
+                    amount: invested,
+                    units: units,
+                    price: assumedPrice,
+                    date: inv.purchaseDate || new Date().toISOString().split('T')[0]
+                }];
+
+                inv.currentPrice = currentPrice;
+                inv.stockName = inv.stockName || '';
+
+                // Remove old fields
+                delete inv.investedAmount;
+                delete inv.currentValue;
+            }
+        });
+    });
+
+    if (migrated) {
+        localStorage.setItem('investmentTrackerData', JSON.stringify(allData));
+        console.log('Investment data migrated to transaction-based format');
+    }
+}
+
+function getInvestmentSummary(investment) {
+    if (!investment.transactions || investment.transactions.length === 0) {
+        return {
+            totalInvested: 0,
+            totalUnits: 0,
+            avgBuyPrice: 0,
+            currentValue: 0,
+            gainLoss: 0,
+            gainLossPercent: 0
+        };
+    }
+
+    let totalBuyAmount = 0;
+    let totalSellAmount = 0;
+    let totalUnits = 0;
+    let totalBuyUnits = 0;
+
+    investment.transactions.forEach(txn => {
+        if (txn.type === 'buy') {
+            totalBuyAmount += parseFloat(txn.amount) || 0;
+            totalBuyUnits += parseFloat(txn.units) || 0;
+            totalUnits += parseFloat(txn.units) || 0;
+        } else if (txn.type === 'sell') {
+            totalSellAmount += parseFloat(txn.amount) || 0;
+            totalUnits -= parseFloat(txn.units) || 0;
+        }
+    });
+
+    const avgBuyPrice = totalBuyUnits > 0 ? totalBuyAmount / totalBuyUnits : 0;
+    const currentPrice = parseFloat(investment.currentPrice) || avgBuyPrice;
+    const currentValue = totalUnits * currentPrice;
+    const netInvested = totalBuyAmount - totalSellAmount;
+    const gainLoss = currentValue + totalSellAmount - totalBuyAmount;
+    const gainLossPercent = totalBuyAmount > 0 ? (gainLoss / totalBuyAmount) * 100 : 0;
+
+    return {
+        totalInvested: netInvested,
+        totalBuyAmount,
+        totalSellAmount,
+        totalUnits,
+        avgBuyPrice,
+        currentPrice,
+        currentValue,
+        gainLoss,
+        gainLossPercent
+    };
+}
+
+function addTransaction(userId, investmentId, transaction) {
+    const investments = getInvestments(userId);
+    const investment = investments.find(inv => inv.id === investmentId);
+
+    if (!investment) return false;
+
+    if (!investment.transactions) {
+        investment.transactions = [];
+    }
+
+    transaction.id = generateId();
+    transaction.date = transaction.date || new Date().toISOString().split('T')[0];
+    investment.transactions.push(transaction);
+
+    // Sort transactions by date
+    investment.transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    saveInvestments(userId, investments);
+    return true;
 }
 
 // ===================================
@@ -425,8 +540,9 @@ function renderMemberDetails() {
     let totalCurrent = 0;
 
     investments.forEach(inv => {
-        totalInvested += parseFloat(inv.investedAmount || 0);
-        totalCurrent += parseFloat(inv.currentValue || 0);
+        const summary = getInvestmentSummary(inv);
+        totalInvested += summary.totalInvested;
+        totalCurrent += summary.currentValue;
     });
 
     const totalGain = totalCurrent - totalInvested;
@@ -452,10 +568,11 @@ function renderMemberDetails() {
     `;
     } else {
         investments.forEach(inv => {
-            const invested = parseFloat(inv.investedAmount || 0);
-            const current = parseFloat(inv.currentValue || 0);
-            const gain = current - invested;
-            const gainPercent = calculateGainLoss(invested, current);
+            const summary = getInvestmentSummary(inv);
+            const invested = summary.totalBuyAmount;
+            const current = summary.currentValue;
+            const gain = summary.gainLoss;
+            const gainPercent = summary.gainLossPercent;
 
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -509,20 +626,73 @@ function saveInvestmentForm(event) {
     event.preventDefault();
 
     const investmentId = document.getElementById('investment-id').value;
+    const category = document.getElementById('investment-category').value;
+    const isStock = ['Stocks', 'US Stock'].includes(category);
+
+    // Base investment data
     const investmentData = {
         name: document.getElementById('investment-name').value,
-        category: document.getElementById('investment-category').value,
-        investedAmount: parseFloat(document.getElementById('inv-invested').value),
-        currentValue: parseFloat(document.getElementById('inv-current').value),
+        category: category,
+        purchaseDate: document.getElementById('investment-date').value,
+        notes: document.getElementById('investment-notes').value,
+        transactions: [],
         interestRate: parseFloat(document.getElementById('inv-interest').value || 0),
         tenureYears: parseFloat(document.getElementById('inv-years').value || 0),
-        purchaseDate: document.getElementById('investment-date').value,
-        notes: document.getElementById('investment-notes').value
+        stockName: '',
+        currentPrice: 0
     };
 
-    if (investmentId) {
-        updateInvestment(selectedMember.id, investmentId, investmentData);
+    // Create initial transaction
+    let initialTransaction = {
+        id: generateId(),
+        type: 'buy',
+        date: investmentData.purchaseDate
+    };
+
+    if (isStock) {
+        // Stock investment
+        const price = parseFloat(document.getElementById('inv-buy-price').value) || 0;
+        const units = parseFloat(document.getElementById('inv-units').value) || 0;
+        const amount = price * units;
+
+        investmentData.stockName = document.getElementById('inv-stock-name').value;
+        investmentData.currentPrice = price;
+
+        initialTransaction.price = price;
+        initialTransaction.units = units;
+        initialTransaction.amount = amount;
     } else {
+        // Regular investment (Mutual Fund, FD, etc.)
+        const amount = parseFloat(document.getElementById('inv-invested').value) || 0;
+        const assumedUnits = amount / 100; // Assume ₹100 per unit
+
+        initialTransaction.price = 100;
+        initialTransaction.units = assumedUnits;
+        initialTransaction.amount = amount;
+
+        // For FD/RD, set currentPrice from maturity calculation
+        if (investmentData.interestRate > 0 && investmentData.tenureYears > 0) {
+            const currentValue = parseFloat(document.getElementById('inv-current').value) || amount;
+            investmentData.currentPrice = assumedUnits > 0 ? currentValue / assumedUnits : 100;
+        } else {
+            investmentData.currentPrice = 100;
+        }
+    }
+
+    investmentData.transactions = [initialTransaction];
+
+    if (investmentId) {
+        // Editing existing investment - update name, notes, etc. but don't modify transactions
+        const investments = getInvestments(selectedMember.id);
+        const investment = investments.find(inv => inv.id === investmentId);
+        if (investment) {
+            investment.name = investmentData.name;
+            investment.notes = investmentData.notes;
+            investment.currentPrice = investmentData.currentPrice;
+            saveInvestments(selectedMember.id, investments);
+        }
+    } else {
+        // New investment
         addInvestment(selectedMember.id, investmentData);
     }
 
@@ -950,23 +1120,54 @@ function calculateReturns() {
 function setupInvestmentListeners() {
     const categorySelect = document.getElementById('investment-category');
     const interestFields = document.getElementById('interest-fields');
+    const stockFields = document.getElementById('stock-fields');
+    const amountField = document.getElementById('amount-field');
 
-    if (!categorySelect || !interestFields) return;
+    if (!categorySelect) return;
 
     // Toggle fields based on category
     categorySelect.addEventListener('change', () => {
         const category = categorySelect.value;
-        const showInterest = ['Fixed Deposits', 'RD (Recurring Deposit)', 'Bonds', 'PPF/NPS'].includes(category);
-        interestFields.style.display = showInterest ? 'block' : 'none';
 
-        // Clear fields if hidden
+        // Show stock fields for Stocks/US Stock
+        const isStock = ['Stocks', 'US Stock'].includes(category);
+        if (stockFields) stockFields.style.display = isStock ? 'block' : 'none';
+        if (amountField) amountField.style.display = isStock ? 'none' : 'block';
+
+        // Show interest fields for FD/RD/Bonds/PPF
+        const showInterest = ['Fixed Deposits', 'RD (Recurring Deposit)', 'Bonds', 'PPF/NPS'].includes(category);
+        if (interestFields) interestFields.style.display = showInterest ? 'block' : 'none';
+
+        // Clear fields when hidden
         if (!showInterest) {
             document.getElementById('inv-interest').value = '';
             document.getElementById('inv-years').value = '';
         }
+        if (!isStock) {
+            document.getElementById('inv-stock-name').value = '';
+            document.getElementById('inv-buy-price').value = '';
+            document.getElementById('inv-units').value = '';
+            document.getElementById('inv-total-amount').value = '';
+        }
     });
 
-    // Auto-calculate current value
+    // Auto-calculate total amount for stocks (price × units)
+    const priceInput = document.getElementById('inv-buy-price');
+    const unitsInput = document.getElementById('inv-units');
+    const totalInput = document.getElementById('inv-total-amount');
+
+    if (priceInput && unitsInput && totalInput) {
+        const calculateTotal = () => {
+            const price = parseFloat(priceInput.value) || 0;
+            const units = parseFloat(unitsInput.value) || 0;
+            totalInput.value = (price * units).toFixed(2);
+        };
+
+        priceInput.addEventListener('input', calculateTotal);
+        unitsInput.addEventListener('input', calculateTotal);
+    }
+
+    // Auto-calculate current value for FD/RD
     const inputs = ['inv-invested', 'inv-interest', 'inv-years', 'investment-category'];
     inputs.forEach(id => {
         const el = document.getElementById(id);
@@ -1004,6 +1205,12 @@ function calculateMaturity() {
 // ===================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Migrate old data format if needed
+    migrateInvestmentData();
+
+    // Setup investment form listeners
+    setupInvestmentListeners();
+
     initializeStorage();
 
     // Check if user is already logged in

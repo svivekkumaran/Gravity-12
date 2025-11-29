@@ -354,9 +354,37 @@
           </select>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="inv-invested">Invested Amount (₹)</label>
-          <input type="number" id="inv-invested" class="form-input" placeholder="0.00" required step="0.01">
+        <!-- Stock-specific Fields (for Stocks/US Stock) -->
+        <div id="stock-fields" style="display: none;">
+          <div class="form-group">
+            <label class="form-label" for="inv-stock-name">Stock Name/Symbol</label>
+            <input type="text" id="inv-stock-name" class="form-input" placeholder="e.g., TCS, INFY, AAPL">
+          </div>
+
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label" for="inv-buy-price">Buy Price (₹)</label>
+              <input type="number" id="inv-buy-price" class="form-input" placeholder="0.00" step="0.01">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="inv-units">Units/Quantity</label>
+              <input type="number" id="inv-units" class="form-input" placeholder="0" step="0.001">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Total Amount</label>
+            <input type="number" id="inv-total-amount" class="form-input" placeholder="0.00" step="0.01" readonly>
+            <small class="text-secondary" style="font-size: 0.75rem;">Auto-calculated: Price × Units</small>
+          </div>
+        </div>
+
+        <!-- Regular Amount Field (for non-stock investments) -->
+        <div id="amount-field">
+          <div class="form-group">
+            <label class="form-label" for="inv-invested">Invested Amount (₹)</label>
+            <input type="number" id="inv-invested" class="form-input" placeholder="0.00" step="0.01">
+          </div>
         </div>
 
         <!-- Dynamic Fields for FD/RD/Bonds -->
