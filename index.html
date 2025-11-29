@@ -478,6 +478,105 @@
   </div>
 
   <!-- ===================================
+       Buy More Modal
+       =================================== -->
+  <div id="buy-more-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Buy More</h2>
+        <button class="modal-close" onclick="hideModal('buy-more-modal')">&times;</button>
+      </div>
+
+      <form id="buy-more-form" onsubmit="saveBuyMoreTransaction(event)">
+        <input type="hidden" id="buy-more-investment-id">
+
+        <div class="form-group">
+          <label class="form-label">Investment</label>
+          <input type="text" id="buy-more-investment-name" class="form-input" readonly>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="form-group">
+            <label class="form-label" for="buy-more-price">Price per Unit (₹)</label>
+            <input type="number" id="buy-more-price" class="form-input" placeholder="0.00" required step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="buy-more-units">Units</label>
+            <input type="number" id="buy-more-units" class="form-input" placeholder="0" required step="0.001">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Total Amount</label>
+          <input type="number" id="buy-more-amount" class="form-input" placeholder="0.00" readonly>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="buy-more-date">Date</label>
+          <input type="date" id="buy-more-date" class="form-input" required>
+        </div>
+
+        <div class="flex gap-1" style="justify-content: flex-end; margin-top: var(--spacing-lg);">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('buy-more-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Transaction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================
+       Sell Modal
+       =================================== -->
+  <div id="sell-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Sell Investment</h2>
+        <button class="modal-close" onclick="hideModal('sell-modal')">&times;</button>
+      </div>
+
+      <form id="sell-form" onsubmit="saveSellTransaction(event)">
+        <input type="hidden" id="sell-investment-id">
+
+        <div class="form-group">
+          <label class="form-label">Investment</label>
+          <input type="text" id="sell-investment-name" class="form-input" readonly>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Available Units</label>
+          <input type="text" id="sell-available-units" class="form-input" readonly>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="form-group">
+            <label class="form-label" for="sell-price">Sell Price per Unit (₹)</label>
+            <input type="number" id="sell-price" class="form-input" placeholder="0.00" required step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sell-units">Units to Sell</label>
+            <input type="number" id="sell-units" class="form-input" placeholder="0" required step="0.001">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Total Amount</label>
+          <input type="number" id="sell-amount" class="form-input" placeholder="0.00" readonly>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="sell-date">Date</label>
+          <input type="date" id="sell-date" class="form-input" required>
+        </div>
+
+        <div class="flex gap-1" style="justify-content: flex-end; margin-top: var(--spacing-lg);">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('sell-modal')">Cancel</button>
+          <button type="submit" class="btn btn-danger">Sell</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================
        Investment Calculator Modal
        =================================== -->
   <div id="calculator-modal" class="modal">

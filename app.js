@@ -593,7 +593,8 @@ function renderMemberDetails() {
         </td>
         <td>
           <div class="flex gap-1">
-            <button class="btn btn-sm btn-secondary" onclick="editInvestment('${inv.id}')">Edit</button>
+            <button class="btn btn-sm btn-primary" onclick="openBuyMoreModal('${inv.id}')">Buy More</button>
+            <button class="btn btn-sm btn-secondary" onclick="openSellModal('${inv.id}')">Sell</button>
             <button class="btn btn-sm btn-danger" onclick="confirmDeleteInvestment('${inv.id}')">Delete</button>
           </div>
         </td>
@@ -999,6 +1000,146 @@ function openAddFamilyMemberModal() {
     document.getElementById('add-family-form').reset();
     showModal('add-family-modal');
 }
+
+// ===================================
+// Buy More / Sell Functions
+// ===================================
+
+function openBuyMoreModal(investmentId) {
+    const investments = getInvestments(selectedMember.id);
+    const investment = investments.find(inv => inv.id === investmentId);
+    if (!investment) return;
+
+    document.getElementById('buy-more-investment-id').value = investmentId;
+    document.getElementById('buy-more-investment-name').value = investment.name;
+    document.getElementById('buy-more-price').value = investment.currentPrice || '';
+    document.getElementById('buy-more-units').value = '';
+    document.getElementById('buy-more-amount').value = '';
+    document.getElementById('buy-more-date').value = new Date().toISOString().split('T')[0];
+
+    // Auto-calculate amount
+    const priceInput = document.getElementById('buy-more-price');
+    const unitsInput = document.getElementById('buy-more-units');
+    const amountInput = document.getElementById('buy-more-amount');
+
+    const calculate = () => {
+        const price = parseFloat(priceInput.value) || 0;
+        const units = parseFloat(unitsInput.value) || 0;
+        amountInput.value = (price * units).toFixed(2);
+    };
+
+    priceInput.oninput = calculate;
+    unitsInput.oninput = calculate;
+
+    showModal('buy-more-modal');
+}
+
+function saveBuyMoreTransaction(event) {
+    event.preventDefault();
+
+    const investmentId = document.getElementById('buy-more-investment-id').value;
+    const price = parseFloat(document.getElementById('buy-more-price').value) || 0;
+    const units = parseFloat(document.getElementById('buy-more-units').value) || 0;
+    const amount = price * units;
+    const date = document.getElementById('buy-more-date').value;
+
+    const transaction = {
+        type: 'buy',
+        price: price,
+        units: units,
+        amount: amount
+    };
+
+    if (addTransaction(selectedMember.id, investmentId, transaction)) {
+        // Update current price
+        const investments = getInvestments(selectedMember.id);
+        const investment = investments.find(inv => inv.id === investmentId);
+        if (investment) {
+            investment.currentPrice = price;
+            saveInvestments(selectedMember.id, investments);
+        }
+
+        hideModal('buy-more-modal');
+        renderMemberDetails();
+    } else {
+        alert('Failed to add transaction');
+    }
+}
+
+function openSellModal(investmentId) {
+    const investments = getInvestments(selectedMember.id);
+    const investment = investments.find(inv => inv.id === investmentId);
+    if (!investment) return;
+
+    const summary = getInvestmentSummary(investment);
+
+    document.getElementById('sell-investment-id').value = investmentId;
+    document.getElementById('sell-investment-name').value = investment.name;
+    document.getElementById('sell-available-units').value = summary.totalUnits.toFixed(3);
+    document.getElementById('sell-price').value = investment.currentPrice || '';
+    document.getElementById('sell-units').value = '';
+    document.getElementById('sell-amount').value = '';
+    document.getElementById('sell-date').value = new Date().toISOString().split('T')[0];
+
+    // Auto-calculate amount
+    const priceInput = document.getElementById('sell-price');
+    const unitsInput = document.getElementById('sell-units');
+    const amountInput = document.getElementById('sell-amount');
+
+    const calculate = () => {
+        const price = parseFloat(priceInput.value) || 0;
+        const units = parseFloat(unitsInput.value) || 0;
+        amountInput.value = (price * units).toFixed(2);
+    };
+
+    priceInput.oninput = calculate;
+    unitsInput.oninput = calculate;
+
+    showModal('sell-modal');
+}
+
+function saveSellTransaction(event) {
+    event.preventDefault();
+
+    const investmentId = document.getElementById('sell-investment-id').value;
+    const price = parseFloat(document.getElementById('sell-price').value) || 0;
+    const units = parseFloat(document.getElementById('sell-units').value) || 0;
+    const amount = price * units;
+    const date = document.getElementById('sell-date').value;
+
+    // Check available units
+    const investments = getInvestments(selectedMember.id);
+    const investment = investments.find(inv => inv.id === investmentId);
+    if (!investment) return;
+
+    const summary = getInvestmentSummary(investment);
+    if (units > summary.totalUnits) {
+        alert(`Cannot sell ${units} units. Only ${summary.totalUnits.toFixed(3)} units available.`);
+        return;
+    }
+
+    const transaction = {
+        type: 'sell',
+        price: price,
+        units: units,
+        amount: amount
+    };
+
+    if (addTransaction(selectedMember.id, investmentId, transaction)) {
+        // Update current price
+        investment.currentPrice = price;
+        saveInvestments(selectedMember.id, investments);
+
+        hideModal('sell-modal');
+        renderMemberDetails();
+    } else {
+        alert('Failed to add transaction');
+    }
+}
+
+// ===================================
+// Add Family Member Functions
+// ===================================
 
 function addFamilyMember(event) {
     event.preventDefault();
