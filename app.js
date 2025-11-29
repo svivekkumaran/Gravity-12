@@ -736,6 +736,77 @@ function confirmDeleteInvestment(investmentId) {
 // Data Export/Import
 // ===================================
 
+// ===================================
+// Member-Specific Export/Import
+// ===================================
+
+function exportMemberData() {
+    if (!selectedMember) return;
+
+    const data = {
+        member: selectedMember,
+        investments: getInvestments(selectedMember.id),
+        exportDate: new Date().toISOString()
+    };
+
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${selectedMember.username}-investments-${Date.now()}.json`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+}
+
+function importMemberData() {
+    if (!selectedMember) return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+
+                if (data.investments && Array.isArray(data.investments)) {
+                    // Merge or replace?
+                    if (confirm('Replace existing investments or merge with current data?\n\nOK = Merge\nCancel = Replace')) {
+                        // Merge
+                        const existing = getInvestments(selectedMember.id);
+                        const merged = [...existing, ...data.investments];
+                        saveInvestments(selectedMember.id, merged);
+                    } else {
+                        // Replace
+                        saveInvestments(selectedMember.id, data.investments);
+                    }
+                    renderMemberDetails();
+                    alert('Data imported successfully!');
+                } else {
+                    alert('Invalid data format');
+                }
+            } catch (error) {
+                alert('Error importing data: ' + error.message);
+            }
+        };
+
+        reader.readAsText(file);
+    };
+
+    input.click();
+}
+
+// ===================================
+// Data Export/Import
+// ===================================
+
 function exportData() {
     const data = {
         users: getUsers(),

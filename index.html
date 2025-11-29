@@ -154,9 +154,13 @@
           <div class="member-avatar" id="member-detail-avatar" style="margin: 0;">👤</div>
           <h1 id="member-detail-name" style="margin: 0;">Member Name</h1>
         </div>
-        <button class="btn btn-primary" onclick="openAddInvestmentModal()">
-          + Add Investment
-        </button>
+        <div class="flex gap-1">
+          <button class="btn btn-secondary btn-sm" onclick="exportMemberData()">Export Data</button>
+          <button class="btn btn-secondary btn-sm" onclick="importMemberData()">Import Data</button>
+          <button class="btn btn-primary" onclick="openAddInvestmentModal()">
+            + Add Investment
+          </button>
+        </div>
       </div>
 
       <!-- Member Stats -->
