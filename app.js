@@ -2,6 +2,9 @@
 // Family Investment Tracker - Application Logic
 // ===================================
 
+// Import Supabase API (falls back to localStorage if not configured)
+import * as API from './lib/api.js';
+
 // ===================================
 // Data Models & Constants
 // ===================================
@@ -122,41 +125,32 @@ function initializeStorage() {
 }
 
 function getUsers() {
-    return JSON.parse(localStorage.getItem('investmentTrackerUsers') || '[]');
+    // Now using API which handles Supabase/localStorage automatically
+    return API.getUsers();
 }
 
-function getInvestments(userId = null) {
-    const allData = JSON.parse(localStorage.getItem('investmentTrackerData') || '{}');
-    return userId ? (allData[userId] || []) : allData;
+async function getInvestments(userId = null) {
+    return await API.getInvestments(userId);
 }
 
-function saveInvestments(userId, investments) {
-    const allData = getInvestments();
-    allData[userId] = investments;
-    localStorage.setItem('investmentTrackerData', JSON.stringify(allData));
+async function saveInvestments(userId, investments) {
+    // Supabase auto-saves, this is for localStorage compatibility
+    return;
 }
 
-function addInvestment(userId, investment) {
-    const investments = getInvestments(userId);
-    investment.id = generateId();
-    investment.createdAt = new Date().toISOString();
-    investments.push(investment);
-    saveInvestments(userId, investments);
+async function addInvestment(userId, investment) {
+    investment.id = investment.id || generateId();
+    investment.user_id = userId;
+    investment.created_at = new Date().toISOString();
+    return await API.createInvestment(investment);
 }
 
-function updateInvestment(userId, investmentId, updatedData) {
-    const investments = getInvestments(userId);
-    const index = investments.findIndex(inv => inv.id === investmentId);
-    if (index !== -1) {
-        investments[index] = { ...investments[index], ...updatedData };
-        saveInvestments(userId, investments);
-    }
+async function updateInvestment(userId, investmentId, updatedData) {
+    return await API.updateInvestment(investmentId, updatedData);
 }
 
-function deleteInvestment(userId, investmentId) {
-    const investments = getInvestments(userId);
-    const filtered = investments.filter(inv => inv.id !== investmentId);
-    saveInvestments(userId, filtered);
+async function deleteInvestment(userId, investmentId) {
+    return await API.deleteInvestment(investmentId);
 }
 
 // ===================================
