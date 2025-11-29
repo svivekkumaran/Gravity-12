@@ -273,8 +273,8 @@ function addTransaction(userId, investmentId, transaction) {
 // Authentication
 // ===================================
 
-function login(username, password) {
-    const users = getUsers();
+async function login(username, password) {
+    const users = await getUsers();
     const hashedPassword = hashPassword(password);
     const user = users.find(u => u.username === username && u.password === hashedPassword);
 
@@ -859,13 +859,13 @@ function importData() {
 // Event Handlers
 // ===================================
 
-function handleLogin(event) {
+async function handleLogin(event) {
     event.preventDefault();
 
     const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
 
-    if (login(username, password)) {
+    if (await login(username, password)) {
         // Clear the form fields for security
         document.getElementById('login-form').reset();
 
@@ -874,7 +874,7 @@ function handleLogin(event) {
         showPage('dashboard');
         renderDashboard();
     } else {
-        alert('Invalid username or password!');
+        alert('Invalid credentials');
     }
 }
 
